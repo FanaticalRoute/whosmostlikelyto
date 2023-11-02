@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lobby</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
+</head>
+<body data-display-name="{{ display_name }}" data-lobby-code="{{ lobby.lobby_code }}">
+    <h1 id="lobby-title">Lobby: {{ lobby.lobby_code }}</h1>
+    <h2 id="player-count">Players: {{ lobby.users|length }}/3</h2>
+
+    <ul id="player-list">
+        {% for user in lobby.users %}
+            <li>{{ user }}</li>
+        {% endfor %}
+    </ul>
+
+    {% if display_name == lobby.host %}
+        {% if lobby.users|length >= 3 %}
+            <button id="start-game" onclick="startGame()">Start Game</button>
+        {% else %}
+            <button id="start-game" disabled>Need at least 3 players to start</button>
+        {% endif %}
+    {% endif %}
+
+    <button id="start-game" onclick="startGame()">Start Game</button>
+
+    <button id="quit-lobby" onclick="quitLobby()">Quit Lobby</button>
+</body>
+</html>
+
+<script>
+var socket = io();  // Initialize Socket.IO
+var source = new EventSource("/stream/{{ lobby.lobby_code }}");  // Initialize EventSource
+
+// Declare and initialize players
+var players = {{ lobby.users|tojson|safe }};  // Convert the list of users to a JSON array
+
+
+socket.on('connect', function() {
+    socket.emit('join', '{{ lobby.lobby_code }}');
+});
+
+function startGame() {
+    alert('lol')
+    var lobby_code = document.body.getAttribute('data-lobby-code');
+
+    fetch('/start_game', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            'lobby_code': lobby_code
+        })
+    }).then(function(response) {
+    if (response.ok) {
+        return response.json();
+    } else {
+        console.error('Failed to start game');
+        throw new Error('Failed to start game');
+    }
+    }).then(function(data) {
+        if (data.status === 'success') {
+            window.location.href = data.game_url;  // Redirect to the game page
+        }
+    }).catch(function(error) {
+        console.error('Error:', error);
+    });
+}
+
+function updatePlayerCountAndList() {
+    document.getElementById("player-count").textContent = "Players: " + players.length + "/3";
+
+    // Update the list of players
+    var playerList = document.getElementById("player-list");
+    // Clear the current list
+    playerList.innerHTML = '';
+    
+    // Add each player to the list
+    for (var i = 0; i < players.length; i++) {
+        var li = document.createElement("li");
+        li.appendChild(document.createTextNode(players[i]));
+        playerList.appendChild(li);
+    }
+}
+
+socket.on('update_players', function(data) {
+    players = data.players;
+    updatePlayerCountAndList();  // Update player count and list when 'update_players' event is received
+});
+
+source.onmessage = function(event) {
+    var newPlayers = JSON.parse(event.data);
+    if (newPlayers.length != players.length) {
+        players = newPlayers;
+        updatePlayerCountAndList();  // Update player count and list when a message is received from the EventSource
+    }
+};
+
+socket.on('update_lobby', function() {
+    var playerCount = players.length;
+    var startGameButton = document.getElementById("start-game");
+
+    console.log(playerCount);
+
+    if (startGameButton) {  // Check if startGameButton is not null
+        if (playerCount >= 3) {
+            startGameButton.disabled = false;
+            startGameButton.textContent = "Start Game";
+        } else {
+            startGameButton.disabled = true;
+            startGameButton.textContent = "Need at least 3 players to start";
+        }
+    }
+});
+
+function quitLobby() {
+    var lobby_code = document.body.getAttribute('data-lobby-code');
+
+    fetch('/quit_lobby', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            'lobby_code': lobby_code
+        })
+    }).then(function(response) {
+        if (response.ok) {
+            window.location.href = '/';  // Redirect to the home page
+        } else {
+            console.error('Failed to quit lobby');
+        }
+    });
+}
+</script>

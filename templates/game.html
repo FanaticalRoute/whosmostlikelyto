@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
+</head>
+<body data-display-name="{{ display_name }}" data-lobby-code="{{ lobby.lobby_code }}">
+    <h1 id="game-title">Game: {{ lobby.lobby_code }}</h1>
+    
+    {% for question in questions %}
+    <h2 id="question">{{ question.question }}</h2>
+
+    <!-- Voting buttons here -->
+    {% for user in lobby.users %}
+    <button class="vote-button" onclick="vote('{{ user }}')">{{ user }}</button>
+    {% endfor %}
+    
+    <!-- Wait for 6 seconds before going to the next question -->
+    <script>
+        setTimeout(function() {
+            // Code to go to the next question
+        }, 6000);
+    </script>
+    {% endfor %}
+
+    <button id="quit-game" onclick="quitLobby()">Quit Game</button>
+</body>
+</html>
+
+<script>
+var socket = io();  // Initialize Socket.IO
+
+socket.on('connect', function() {
+    socket.emit('join', '{{ lobby.lobby_code }}');
+});
+
+function quitLobby() {
+    var lobby_code = document.body.getAttribute('data-lobby-code');
+
+    fetch('/quit_lobby', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            'lobby_code': lobby_code
+        })
+    }).then(function(response) {
+        if (response.ok) {
+            window.location.href = '/';  // Redirect to the home page
+        } else {
+            console.error('Failed to quit lobby');
+        }
+    });
+}
+</script>
